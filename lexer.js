@@ -1,5 +1,7 @@
 class Token {
-  constructor(type_, value = null) {
+  constructor(pos_start, pos_end, type_, value = null) {
+    this.pos_start = pos_start
+    this.pos_end = pos_end
     this.type = type_
     this.value = value
   }
@@ -21,17 +23,19 @@ class Token {
 /////////////
 //CONSTANTS//
 /////////////
-const DIGITS     = '0123456789'
-const LETTERS    = 'ABCDEFGHIJKLMMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-const SYMBOLS    = '!"#$%&\'()*+,-./0123456789:;<=>?@[\\]^`{|}~'
-const ASCII      = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
-const WHITESPACE = ' \n\r\t\f'
+const DIGITS      = '0123456789'
+const LETTERS     = 'ABCDEFGHIJKLMMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+const PUNCTUATION = '!"#$%&\'()*+,-./0123456789:;<=>?@[\\]^`{|}~'
+const ASCII       = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+const WHITESPACE  = ' \n\r\t\f'
 
-class Lexer {
+
+
+class Tokenizer {
   constructor(text, fname) {
     this.text = text
     this.fname = fname
-    this.pos = new Position(-1, 0, -1, this.fname, this.text)
+    this.pos = new Position(-1, 0, -1)
     this.current_char = null
     this.next()
   }
@@ -50,10 +54,8 @@ class Lexer {
         this.next()
       } else if (LETTERS.includes(this.current_char)) {
         tokens.push(this.make_identifier())
-      } else if ('()[]'.includes(this.current_char)) {
-        tokens.push(this.make_bracket())
-      } else if (SYMBOLS.includes(this.current_char)) {
-        tokens.push(this.make_operator())
+      } else if (PUNCTUATION.includes(this.current_char)) {
+        tokens.push(this.make_punc())
       } else if (DIGITS.includes(this.current_char)) {
         tokens.push(this.make_number())
       }
@@ -64,59 +66,34 @@ class Lexer {
 
   make_identifier() {
     let id = this.current_char
+    let pos_start = this.pos.copy()
     this.next()
-    while ((LETTERS + DIGITS + '_').includes(this.current_char) && !(WHITESPACE + SYMBOLS).includes(this.current_char)) {
+    while ((LETTERS + DIGITS + '_').includes(this.current_char) && !(WHITESPACE + PUNCTUATION).includes(this.current_char)) {
       id += this.current_char
       this.next()
     }
-    return new Token('ID', id)
+    let pos_end = this.pos_end
+    return new Token(pos_start, pos_end, 'ID', id)
   }
 
-  make_operator() {
-    let op
-    switch (this.current_char) {
-      case '+':
-        op = 'PLUS'
-        break
-      case '-':
-        op = 'MINUS'
-        break
-      case '*':
-        op = 'TIMES'
-        break
-      case '/':
-        op = 'DIV'
-        break
-    }
+  make_punc() {
+    let punc = this.current_char
+    let pos_start = this.pos.copy()
     this.next()
-    return new Token('OP', op)
-  }
-
-  make_bracket() {
-    let x
-    switch (this.current_char) {
-      case '(':
-        x = 'LEFT_PAREN'
-        break
-      case ')':
-        x = 'RIGHT_PAREN'
-        break
-      case '[':
-        x = 'LEFT_SQUARE'
-        break
-      case ']':
-        x = 'RIGHT_SQUARE'
-        break
+    while (PUNCTUATION.includes(this.current_char) && !(LETTERS + DIGITS + WHITESPACE).includes(this.current_char) && this.current_char) {
+      op += this.current_char
+      this.next()
     }
-    this.next()
-    return new Token(x)
+    let pos_end = this.pos.copy()
+    return new Token('PUNCTUATION', punc)
   }
 
   make_number() {
     let num = this.current_char
+    let pos_start = this.pos.copy()
     let dotCount = 0
     this.next()
-    while ((DIGITS + '.').includes(this.current_char) && (dotCount <= 1) && !(SYMBOLS + WHITESPACE).includes(this.current_char)) {
+    while ((DIGITS + '.').includes(this.current_char) && (dotCount <= 1) && !(PUNCTUATION + WHITESPACE).includes(this.current_char)) {
       if (this.current_char == '.') {
         if (dotCount == 0) {
           dotCount++
@@ -127,21 +104,20 @@ class Lexer {
       }
       this.next()
     }
+    let pos_end = this.pos.copy()
     if (dotCount == 0) {
-      return new Token('INT', num)
+      return new Token(pos_start, pos_end, 'INT', num)
     } else {
-      return new Token('FLOAT', num)
+      return new Token(pos_start, pos_end, 'FLOAT', num)
     }
   }
 }
 
 class Position {
-  constructor(idx, ln, col, text, fname) {
+  constructor(idx, ln, col) {
     this.idx = idx
     this.ln = ln
     this.col = col
-    this.text = text
-    this.fname = fname
   }
 
   next(current_char) {
@@ -157,7 +133,7 @@ class Position {
   }
 
   copy() {
-    return new Position(this.idx, this.ln, this.col, this.text, this.fname)
+    return new Position(this.idx, this.ln, this.col)
   }
 }
 
