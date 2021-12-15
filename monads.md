@@ -1,4 +1,4 @@
-## Monads
+# Monads
 
 Most people tend to treat monads as some esoteric thing that is nigh incomprehensible to the average person. While certainly an obscure name, monads are incredibly important for functional programming. Many applications in functional programming like lists, advanced data structures, optional return values, and IO capabilities rely on monads to preserve referential transparency and build complex operations. To understand monads, we must first understand some category theory.
 
