@@ -44,19 +44,29 @@ some 6 : Maybe Int
 ```
 Most container types like this are functors, like `List`s, `Tree`s, and even `IO` actions. No matter what is passed into an optional value, for example, the actual structure of the value remains the same; the only difference is that it is wrapped in an optional type constructor. The thing that sets functors apart, however, is a `map` function that can unwrap wrapped values, apply a regular function to them, and rewrap them. `map` also preserves the identity function and composition:
 ```
-interface Functor f [
+interface [] Functor f [
   map : (a -> b) -> f a -> f b
 ]
 
 map id       == id
 map (f >> g) == map f >> map g
 ```
-Functors are incredibly useful and `map` is ubiquitous when working with complicated data structures. For example, `map` allows you to apply a function to each value within a `List`, `Tree`, or any other collections:
+Functors are incredibly useful and `map` is ubiquitous when working with complicated data structures. For example, `map` allows you to apply a function to each value within a `List`, `Tree`, or any other collection:
 ```
-List implements Functor [
+[Functor] List [
   map = f -> lst -> match lst [
     x :: xs -> f x :: map f xs
     []      -> []
   ]
 ]
 ```
+### Applicatives
+
+If functors are able to apply functions to wrapped values, then **applicative functors** are able to apply wrapped functions to wrapped values, with the use of the `lift` function, that wraps a value, and the `apply` function, that applies wrapped functions to wrapped values:
+```
+interface [Functor f] Applicative f [
+  lift  : a -> f a
+  apply : f (a -> b) -> f a -> f b
+]
+```
+This comes in handy when the function you are trying to apply
