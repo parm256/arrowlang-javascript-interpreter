@@ -1,7 +1,53 @@
+///////////////
+///CONSTANTS///
+///////////////
+
+const DIGITS      = '0123456789'
+const LETTERS     = 'ABCDEFGHIJKLMMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+const PUNCTUATION = '!"#$%&\'*+,-./:;<=>?@\\^`|~'
+const ASCII       = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
+const WHITESPACE  = ' \n\r\t\f'
+const SEPARATORS  = '()[]{}'
+
+////////////////////
+///ERROR HANDLING///
+////////////////////
+
+class Throw {
+  
+  constructor(type_, details, fname, text, pos_start, pos_end = pos_start.copy()) {
+    this.type = type_
+    this.details = details
+    this.fname = fname
+    this.text = text
+    this.pos_start = pos_start
+    this.pos_end = pos_end
+    
+    let context = this.text.split('\n').filter((e, i) => {this.pos_start.ln <= i <= this.pos_end.ln}).map((e, i) => {`<${this.fname}: line ${i}> ` + e}).join('\n')
+    
+    console.log(context)
+    
+    let error = 
+      "<Error " + `${this.pos_start.ln}:${this.pos_start.col} ${this.pos_end.ln}:${this.pos_end.col}` + ">\n" + `${this.type} in ${this.fname} ` +
+      `${(this.pos_start.ln == this.pos_end.ln) ? `at line ${this.pos_start.ln}` : `from line ${this.pos_start.ln} to line ${this.pos_end.ln}`}:` +
+      '\n' + context + 
+      '\n' + `${this.details}`
+    
+    console.log(error)
+    return error
+  }
+}
+
+////////////
+///TOKENS///
+////////////
+
 class Token {
-  constructor(type_, value = null) {
+  constructor(type_, value, pos_start, pos_end) {
     this.type = type_
     this.value = value
+    this.pos_start = pos_start
+    this.pos_end = pos_end
   }
 
   match(type_, value) {
@@ -18,134 +64,135 @@ class Token {
 }
 
 
-/////////////
-//CONSTANTS//
-/////////////
-const DIGITS     = '0123456789'
-const LETTERS    = 'ABCDEFGHIJKLMMOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-const SYMBOLS    = '!"#$%&\'()*+,-./0123456789:;<=>?@[\\]^`{|}~'
-const ASCII      = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~'
-const WHITESPACE = ' \n\r\t\f'
+//////////////////////////
+///RAW INPUT PROCESSING///
+//////////////////////////
 
-class Lexer {
+// Separates and cleans up the raw input so it can be manipulated
+class InputProcessor {
+  
+  // Constructs a new InputProcessor()
   constructor(text, fname) {
     this.text = text
     this.fname = fname
-    this.pos = new Position(-1, 0, -1, this.fname, this.text)
+    this.pos = new Position(-1, 0, -1)
     this.current_char = null
     this.next()
   }
-
+  
+  // Advances the current character being processed
   next() {
-    this.pos.next(this.current_char)
+    this.pos.next(this.current_char, this.text)
     if (this.pos.idx < this.text.length) {
       this.current_char = this.text[this.pos.idx]
     } else {this.current_char = null}
   }
 
-  make_tokens() {
+  process_input() {
     let tokens = []
     while (this.pos.idx < this.text.length) {
       if (WHITESPACE.includes(this.current_char)) {
-        this.next()
+        if ('\n\r'.includes(this.current_char)) {
+          let pos_start = this.pos.copy()
+          this.next()
+          let pos_end = this.pos.copy()
+          tokens.push([pos_start, pos_end, 'NEWLINE', '\n'])
+        } else if (this.current_char == '\t') {
+          let pos_start = this.pos.copy()
+          this.next()
+          let pos_end = this.pos.copy()
+          tokens.push([pos_start, pos_end, 'TAB', '\t'])
+        } else {this.next()}
       } else if (LETTERS.includes(this.current_char)) {
         tokens.push(this.make_identifier())
-      } else if ('()[]'.includes(this.current_char)) {
-        tokens.push(this.make_bracket())
-      } else if (SYMBOLS.includes(this.current_char)) {
-        tokens.push(this.make_operator())
       } else if (DIGITS.includes(this.current_char)) {
         tokens.push(this.make_number())
+      } else if (this.current_char == '"') {
+        tokens.push(this.make_string_literal())
+      } else if (PUNCTUATION.includes(this.current_char)) {
+        tokens.push(this.make_punc())
       }
-      console.log(tokens)
     }
     return tokens
   }
-
+  
   make_identifier() {
     let id = this.current_char
+    let pos_start = this.pos.copy()
     this.next()
-    while ((LETTERS + DIGITS + '_').includes(this.current_char) && !(WHITESPACE + SYMBOLS).includes(this.current_char)) {
+    while ((LETTERS + DIGITS + '_').includes(this.current_char)) {
       id += this.current_char
       this.next()
     }
-    return new Token('ID', id)
+    let pos_end = this.pos.copy()
+    return [pos_start, pos_end, 'IDENTIFIER', id]
   }
 
-  make_operator() {
-    let op
-    switch (this.current_char) {
-      case '+':
-        op = 'PLUS'
-        break
-      case '-':
-        op = 'MINUS'
-        break
-      case '*':
-        op = 'TIMES'
-        break
-      case '/':
-        op = 'DIV'
-        break
-    }
+  make_punc() {
+    let punc = this.current_char
+    let pos_start = this.pos.copy()
     this.next()
-    return new Token('OP', op)
-  }
-
-  make_bracket() {
-    let x
-    switch (this.current_char) {
-      case '(':
-        x = 'LEFT_PAREN'
-        break
-      case ')':
-        x = 'RIGHT_PAREN'
-        break
-      case '[':
-        x = 'LEFT_SQUARE'
-        break
-      case ']':
-        x = 'RIGHT_SQUARE'
-        break
+    while (PUNCTUATION.includes(this.current_char)) {
+      punc += this.current_char
+      this.next()
     }
-    this.next()
-    return new Token(x)
+    let pos_end = this.pos.copy()
+    return [pos_start, pos_end, 'PUNCTUATION', punc]
   }
 
   make_number() {
     let num = this.current_char
-    let dotCount = 0
+    let pos_start = this.pos.copy()
     this.next()
-    while ((DIGITS + '.').includes(this.current_char) && (dotCount <= 1) && !(SYMBOLS + WHITESPACE).includes(this.current_char)) {
-      if (this.current_char == '.') {
-        if (dotCount == 0) {
-          dotCount++
-          num += '.'
-        }
-      } else {
-        num += ('' + this.current_char)
-      }
+    while (DIGITS.includes(this.current_char)) {
+      num += ('' + this.current_char)
       this.next()
     }
-    if (dotCount == 0) {
-      return new Token('INT', num)
+    if (this.current_char == '.') {
+    	num += '.'
+      this.next()
+      while (DIGITS.includes(this.current_char)) {
+      	num += ('' + this.current_char)
+      	this.next()
+    	}
+      let pos_end = this.pos.copy()
+      return [pos_start, pos_end, 'FLOAT', num]
     } else {
-      return new Token('FLOAT', num)
+    	let pos_end = this.pos.copy()
+			return [pos_start, pos_end, 'INT', num]
+    }
+  }
+  
+  make_string_literal() {
+    let str = this.current_char
+    let pos_start = this.pos.copy()
+    let prev_char = this.current_char
+    this.next()
+    while ((this.current_char != '"' || prev_char + this.current_char == '\\"') && this.current_char != null) {
+      str += this.current_char
+      prev_char = this.current_char
+      this.next()
+    }
+    if (this.current_char == null) {
+      new Throw('Syntax error', 'Missing string end delimiter \'"\'', this.fname, this.text, pos_start, this.pos.copy())
+    } else {
+      str += this.current_char
+      this.next()
+      let pos_end = this.pos.copy()
+      return [pos_start, pos_end, 'STR_LIT', str] 
     }
   }
 }
 
 class Position {
-  constructor(idx, ln, col, text, fname) {
+  constructor(idx, ln, col) {
     this.idx = idx
     this.ln = ln
     this.col = col
-    this.text = text
-    this.fname = fname
   }
 
-  next(current_char) {
-    if (this.idx < this.text.length) {
+  next(current_char, text) {
+    if (this.idx < text.length) {
       this.idx++
       this.col++
       if ('/r/n'.includes(current_char)) {
@@ -157,11 +204,11 @@ class Position {
   }
 
   copy() {
-    return new Position(this.idx, this.ln, this.col, this.text, this.fname)
+    return new Position(this.idx, this.ln, this.col)
   }
 }
 
 // TEST
 
-let test = new Lexer('yes', 'std')
-console.log(test.make_tokens().map(e => e.str()))
+let test = new InputProcessor(`ogay`, 'std')
+console.log(test.process_input())
